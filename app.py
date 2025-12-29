@@ -8,7 +8,7 @@ import plotly.graph_objects as go
 # ==============================================================================
 st.set_page_config(page_title="Simulador SARS", layout="wide", page_icon="🦠")
 
-# Valores iniciales originales
+# Valores iniciales
 defaults = {
     'S0': 12000000, 'E0': 1565, 'I0': 695, 'Q0': 292, 'J0': 326, 'R0': 20,
     'beta': 0.2, 'mu': 0.000034,
@@ -30,7 +30,7 @@ def reset_params():
         st.session_state[k] = v
 
 # ==============================================================================
-# 1. MOTOR MATEMÁTICO (Cálculo en Flotantes)
+# 1. MOTOR MATEMÁTICO
 # ==============================================================================
 def sistema_edo(t, y, p):
     S, E, Q, I, J, R, C = y
@@ -106,7 +106,7 @@ with st.sidebar.expander("3. Gestión Clínica"):
     u2 = st.slider("Aislar (γ2)", 0.0, 1.0, key='u2')
 
 # ==============================================================================
-# 3. EJECUCIÓN Y CONVERSIÓN A ENTEROS
+# 3. EJECUCIÓN Y PROCESADO
 # ==============================================================================
 p = st.session_state
 N_ini = p['S0'] + p['E0'] + p['I0'] + p['Q0'] + p['J0'] + p['R0']
@@ -120,54 +120,61 @@ params_solve = {
 y0 = np.array([p['S0'], p['E0'], p['Q0'], p['I0'], p['J0'], p['R0'], 0.0])
 t_span = np.linspace(0, p['days'], 600)
 
-# Resolver (Matemática continua)
+# Resolver
 Y_raw = rk4_solver(sistema_edo, t_span, y0, params_solve)
 
-# --- TRUCO: Convertir a Enteros para Visualización ---
-# Usamos np.rint (round to nearest integer) y luego astype(int)
+# Convertir a Enteros
 Y_int = np.rint(Y_raw).astype(int)
-
-S, E, Q, I, J, R, C = Y_int # Desempaquetamos los enteros
+S, E, Q, I, J, R, C = Y_int
 N_total = S + E + Q + I + J + R
 C_total_real = C + (int(p['E0']) + int(p['Q0']) + int(p['I0']) + int(p['J0']))
 
 # ==============================================================================
 # 4. VISUALIZACIÓN
 # ==============================================================================
-col_tools1, col_tools2 = st.columns([0.85, 0.15])
-with col_tools2:
-    if st.button("🔍 Reset Vistas"):
-        st.rerun()
-
 tab1, tab2, tab3 = st.tabs(["📈 Dinámica (Lineal)", "📊 Escala Logarítmica", "📋 Datos Detallados"])
+
+# Configuración común para que el tooltip solo muestre enteros
+# %{y:.0f} fuerza formato de número entero sin decimales
+hover_template_config = '%{y:.0f}' 
 
 with tab1:
     fig = go.Figure()
-    # Al pasarle arrays de enteros (S, E, I...), Plotly mostrará enteros en el cursor
-    fig.add_trace(go.Scatter(x=t_span, y=S, name='Susceptibles', line=dict(color='cyan')))
-    fig.add_trace(go.Scatter(x=t_span, y=E, name='Expuestos', line=dict(color='orange')))
-    fig.add_trace(go.Scatter(x=t_span, y=I, name='Infectados', line=dict(color='red', width=3)))
-    fig.add_trace(go.Scatter(x=t_span, y=Q, name='Cuarentena', line=dict(color='blue')))
-    fig.add_trace(go.Scatter(x=t_span, y=J, name='Aislados', line=dict(color='purple')))
-    fig.add_trace(go.Scatter(x=t_span, y=R, name='Recuperados', line=dict(color='green', dash='dash')))
-    fig.update_layout(title="Evolución de la Epidemia (Personas)", xaxis_title="Días", yaxis_title="Habitantes", hovermode="x unified")
+    fig.add_trace(go.Scatter(x=t_span, y=S, name='Susceptibles', line=dict(color='cyan'), hovertemplate=hover_template_config))
+    fig.add_trace(go.Scatter(x=t_span, y=E, name='Expuestos', line=dict(color='orange'), hovertemplate=hover_template_config))
+    fig.add_trace(go.Scatter(x=t_span, y=I, name='Infectados', line=dict(color='red', width=3), hovertemplate=hover_template_config))
+    fig.add_trace(go.Scatter(x=t_span, y=Q, name='Cuarentena', line=dict(color='blue'), hovertemplate=hover_template_config))
+    fig.add_trace(go.Scatter(x=t_span, y=J, name='Aislados', line=dict(color='purple'), hovertemplate=hover_template_config))
+    fig.add_trace(go.Scatter(x=t_span, y=R, name='Recuperados', line=dict(color='green', dash='dash'), hovertemplate=hover_template_config))
+    
+    fig.update_layout(
+        title="Evolución de la Epidemia (Personas)",
+        xaxis_title="Días",
+        yaxis_title="Habitantes",
+        hovermode="x unified"
+    )
+    # Forzar formato en eje Y también
+    fig.update_yaxes(tickformat="d")
     st.plotly_chart(fig, use_container_width=True)
 
 with tab2:
     fig_log = go.Figure()
-    # En logarítmica es importante filtrar los 0s para evitar errores matemáticos en el plot, 
-    # pero Plotly lo suele manejar bien ocultando la línea.
-    fig_log.add_trace(go.Scatter(x=t_span, y=E, name='Expuestos', line=dict(color='orange')))
-    fig_log.add_trace(go.Scatter(x=t_span, y=I, name='Infectados', line=dict(color='red')))
-    fig_log.add_trace(go.Scatter(x=t_span, y=Q, name='Cuarentena', line=dict(color='blue')))
-    fig_log.add_trace(go.Scatter(x=t_span, y=J, name='Aislados', line=dict(color='purple')))
+    fig_log.add_trace(go.Scatter(x=t_span, y=E, name='Expuestos', line=dict(color='orange'), hovertemplate=hover_template_config))
+    fig_log.add_trace(go.Scatter(x=t_span, y=I, name='Infectados', line=dict(color='red'), hovertemplate=hover_template_config))
+    fig_log.add_trace(go.Scatter(x=t_span, y=Q, name='Cuarentena', line=dict(color='blue'), hovertemplate=hover_template_config))
+    fig_log.add_trace(go.Scatter(x=t_span, y=J, name='Aislados', line=dict(color='purple'), hovertemplate=hover_template_config))
+    
     fig_log.update_yaxes(type="log")
-    fig_log.update_layout(title="Vista Logarítmica", xaxis_title="Días", hovermode="x unified")
+    fig_log.update_layout(
+        title="Vista Logarítmica",
+        xaxis_title="Días",
+        hovermode="x unified"
+    )
     st.plotly_chart(fig_log, use_container_width=True)
 
 with tab3:
     col_kpi1, col_kpi2, col_kpi3 = st.columns(3)
-    col_kpi1.metric("Pico de Infectados", f"{max(I):,}") # Ya es entero
+    col_kpi1.metric("Pico de Infectados", f"{max(I):,}")
     col_kpi2.metric("Total Afectados", f"{C_total_real[-1]:,}")
     col_kpi3.metric("Muertes Totales", f"{int(N_ini) - N_total[-1]:,}", delta_color="inverse")
     
