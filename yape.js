@@ -7,6 +7,7 @@ app.set('trust proxy', true);
 app.get('/', (req, res) => {
     const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
     console.log('IP capturada:', ip);
+    res.set('Cache-Control', 'no-store');
     res.send('Página cargada');
 });
 
